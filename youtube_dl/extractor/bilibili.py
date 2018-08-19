@@ -23,7 +23,7 @@ from ..utils import (
 
 
 class BiliBiliIE(InfoExtractor):
-    _VALID_URL = r'https?://(?:www\.|bangumi\.|)bilibili\.(?:tv|com)/(?:video/av|anime/(?P<anime_id>\d+)/play#)(?P<id>\d+)'
+    _VALID_URL = r'https?://(?:www\.|bangumi\.|)bilibili\.(?:tv|com)/(?:video/av|anime/(?P<anime_id>\d+)/play#)(?P<id>\d+)(?:/?\?p=(?P<page>\d+))?'
 
     _TESTS = [{
         'url': 'http://www.bilibili.tv/video/av1074402/',
@@ -91,6 +91,22 @@ class BiliBiliIE(InfoExtractor):
                 'skip_download': True,  # Test metadata only
             },
         }]
+    }, {
+        # Test pages
+        'url': 'http://www.bilibili.com/video/av19608864/?p=3',
+        'md5': 'e0c3368a3a1d53ac5892da1abe57887d',
+        'info_dict': {
+            'id': '19608864',
+            'ext': 'flv',
+            'title': '【iu】【penta kill】第七届Gaon Chart K-POP Awards~各种屏录~',
+            'description': 'md5:d9f59c5658f4f2eafc04a191e1ab0828',
+            'duration': 100.264,
+            'timestamp': 1518671057,
+            'upload_date': '20180215',
+            'thumbnail': r're:^https?://.+\.jpg',
+            'uploader': '普通的柒月初叁',
+            'uploader_id': '260251749',
+        },
     }]
 
     _APP_KEY = 'iVGUTjsxvpLeuDCf'
@@ -110,17 +126,20 @@ class BiliBiliIE(InfoExtractor):
         mobj = re.match(self._VALID_URL, url)
         video_id = mobj.group('id')
         anime_id = mobj.group('anime_id')
+        page = mobj.group('page') or 1
         webpage = self._download_webpage(url, video_id)
 
         if 'anime/' not in url:
-            cid = self._search_regex(
-                r'\bcid(?:["\']:|=)(\d+)', webpage, 'cid',
-                default=None
-            ) or compat_parse_qs(self._search_regex(
-                [r'EmbedPlayer\([^)]+,\s*"([^"]+)"\)',
-                 r'EmbedPlayer\([^)]+,\s*\\"([^"]+)\\"\)',
-                 r'<iframe[^>]+src="https://secure\.bilibili\.com/secure,([^"]+)"'],
-                webpage, 'player parameters'))['cid'][0]
+          mobj = re.findall(r'cid(?:["\']:|=)(\d+)', webpage)
+          seen_mobj = set()
+          mobj = [c for c in mobj if int(c) > 10 and not (c in seen_mobj or seen_mobj.add(c))]
+          print(mobj)
+          cid = mobj[int(page) - 1] or \
+                compat_parse_qs(self._search_regex([
+                    r'EmbedPlayer\([^)]+,\s*"([^"]+)"\)',
+                    r'EmbedPlayer\([^)]+,\s*\\"([^"]+)\\"\)',
+                    r'<iframe[^>]+src="https://secure\.bilibili\.com/secure,([^"]+)"'],
+                    webpage, 'player parameters'))['cid'][0]
         else:
             if 'no_bangumi_tip' not in smuggled_data:
                 self.to_screen('Downloading episode %s. To download all videos in anime %s, re-run youtube-dl with %s' % (
